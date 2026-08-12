@@ -22,8 +22,8 @@
   }
   *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
   html,body{
-    margin:0; padding:0; height:100%; overflow:hidden;
-    background:var(--sky-top);
+    margin:0; padding:0; height:100%; height:100dvh; overflow:hidden;
+    background:var(--field-dark);
     font-family:'Space Grotesk', system-ui, sans-serif;
     color:var(--ink);
     touch-action:none;
@@ -31,6 +31,7 @@
   }
   #app{
     position:fixed; inset:0;
+    height:100dvh;
     display:flex; align-items:center; justify-content:center;
     background: linear-gradient(180deg, var(--field-dark) 0%, var(--field-mid) 100%);
   }
@@ -336,14 +337,18 @@ const canvas = document.getElementById("game");
 const ctx = canvas.getContext("2d");
 
 const LOGICAL_W = 400;
-const LOGICAL_H = 620;
+let LOGICAL_H = 620; // wird in resize() an das tatsächliche Bildschirm-Seitenverhältnis angepasst
 let scale = 1;
+let bird, pipes, running, score, lastTime, spawnTimer, gameStarted, elapsedPlay, nextInterval;
 
 function resize(){
   const stage = document.getElementById("stage");
   const rect = stage.getBoundingClientRect();
   const dpr = window.devicePixelRatio || 1;
-  scale = Math.min(rect.width / LOGICAL_W, rect.height / LOGICAL_H);
+  if (rect.width > 0 && rect.height > 0 && !gameStarted){
+    LOGICAL_H = Math.round(LOGICAL_W * (rect.height / rect.width));
+  }
+  scale = rect.width / LOGICAL_W;
   canvas.width = LOGICAL_W * dpr;
   canvas.height = LOGICAL_H * dpr;
   canvas.style.width = (LOGICAL_W*scale) + "px";
@@ -351,7 +356,18 @@ function resize(){
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 }
 window.addEventListener("resize", resize);
+window.addEventListener("orientationchange", resize);
+if (window.visualViewport){
+  window.visualViewport.addEventListener("resize", resize);
+  window.visualViewport.addEventListener("scroll", resize);
+}
 resize();
+// Safari passt die Adressleiste oft erst kurz nach dem ersten Rendern an —
+// deshalb hier nochmal nachjustieren, sobald sich die Werte gesetzt haben.
+window.addEventListener("load", resize);
+setTimeout(resize, 50);
+setTimeout(resize, 300);
+setTimeout(resize, 800);
 
 const GRAVITY = 1400;      // px/s^2
 const FLAP_VELOCITY = -380; // px/s
@@ -366,7 +382,6 @@ const PIPE_INTERVAL_EXTRA_START = 450; // zusätzlicher Abstand ganz am Anfang
 const PIPE_INTERVAL_EXTRA_LATE = 120;  // kleine Restvarianz, die auch spät noch bleibt
 const RAMP_SECONDS = 40; // Zeit, bis die volle Schwierigkeit erreicht ist
 
-let bird, pipes, running, score, lastTime, spawnTimer, gameStarted, elapsedPlay, nextInterval;
 let celebration = { active:false, timer:0, duration:1200 };
 
 function resetGame(){
@@ -465,7 +480,7 @@ function update(dt, now){
     }
 
     // Kollisionen
-    if (bird.y - bird.r < 0 || bird.y + bird.r > LOGICAL_H - 40){
+    if (bird.y - bird.r < 40 || bird.y + bird.r > LOGICAL_H - 40){
       endGame();
       return;
     }
@@ -599,11 +614,17 @@ function draw(){
   // Goalposts
   for (const p of pipes) drawGoalpost(p);
 
-  // Boden / Seitenlinie
+  // Boden / Seitenlinie (unten)
   ctx.fillStyle = "#f4f7f0";
   ctx.fillRect(0, LOGICAL_H-40, LOGICAL_W, 6);
   ctx.fillStyle = "#173a24";
   ctx.fillRect(0, LOGICAL_H-34, LOGICAL_W, 34);
+
+  // Seitenlinie (oben, spiegelbildlich)
+  ctx.fillStyle = "#173a24";
+  ctx.fillRect(0, 0, LOGICAL_W, 34);
+  ctx.fillStyle = "#f4f7f0";
+  ctx.fillRect(0, 34, LOGICAL_W, 6);
 
   // Football
   ctx.save();
