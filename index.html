@@ -1,0 +1,694 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>brothi.de — Hail Mary</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Space+Grotesk:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --field-dark:#1e5631;
+    --field-mid:#2d7a42;
+    --field-light:#348a4b;
+    --chalk:#f4f7f0;
+    --gold:#ffd60a;
+    --ink:#f4f7f0;
+    --ink-dim:#c9d9c9;
+    --accent:#ffd60a;
+    --danger:#ff5c72;
+    --panel:#173a24;
+    --panel-line:rgba(244,247,240,0.16);
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+  html,body{
+    margin:0; padding:0; height:100%; overflow:hidden;
+    background:var(--sky-top);
+    font-family:'Space Grotesk', system-ui, sans-serif;
+    color:var(--ink);
+    touch-action:none;
+    -webkit-user-select:none; user-select:none;
+  }
+  #app{
+    position:fixed; inset:0;
+    display:flex; align-items:center; justify-content:center;
+    background: linear-gradient(180deg, var(--field-dark) 0%, var(--field-mid) 100%);
+  }
+  #stage{
+    position:relative;
+    width:100%; height:100%;
+    max-width:520px;
+    display:flex; flex-direction:column;
+  }
+  canvas{
+    display:block; width:100%; height:100%;
+    touch-action:none;
+  }
+
+  .pixel{ font-family:'Press Start 2P', monospace; letter-spacing:1px; }
+
+  .overlay{
+    position:absolute; inset:0;
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    gap:18px; padding:28px;
+    text-align:center;
+    background:rgba(26,16,36,0.55);
+    backdrop-filter: blur(2px);
+  }
+  .overlay.hidden{ display:none; }
+
+  .title{
+    font-size:15px; line-height:1.6;
+    color:var(--sun);
+    text-shadow: 0 2px 0 rgba(0,0,0,0.35);
+  }
+  .subtitle{
+    color:var(--ink-dim);
+    font-size:13px;
+    max-width:280px;
+    line-height:1.5;
+    margin-top:-6px;
+  }
+
+  input[type=text]{
+    font-family:'Space Grotesk', system-ui, sans-serif;
+    font-size:16px;
+    padding:13px 16px;
+    width:240px;
+    max-width:70vw;
+    border-radius:10px;
+    border:2px solid var(--panel-line);
+    background:var(--panel);
+    color:var(--ink);
+    outline:none;
+    text-align:center;
+  }
+  input[type=text]:focus{ border-color:var(--accent); }
+
+  button{
+    font-family:'Press Start 2P', monospace;
+    font-size:11px;
+    letter-spacing:1px;
+    padding:14px 22px;
+    border-radius:10px;
+    border:none;
+    background:var(--accent);
+    color:#10231e;
+    cursor:pointer;
+    box-shadow:0 4px 0 #2c8f7c;
+    transition:transform 0.05s ease;
+  }
+  button:active{ transform:translateY(3px); box-shadow:0 1px 0 #2c8f7c; }
+  button.secondary{
+    background:transparent;
+    color:var(--ink);
+    border:2px solid var(--panel-line);
+    box-shadow:none;
+  }
+  button:disabled{ opacity:0.5; cursor:default; }
+
+  .score-line{ font-size:13px; color:var(--ink-dim); }
+  .score-big{
+    font-family:'Press Start 2P', monospace;
+    font-size:34px;
+    color:var(--ink);
+    text-shadow:0 3px 0 rgba(0,0,0,0.35);
+  }
+
+  .board{
+    width:280px; max-width:78vw;
+    background:var(--panel);
+    border:2px solid var(--panel-line);
+    border-radius:12px;
+    padding:14px 16px;
+    text-align:left;
+  }
+  .board h3{
+    margin:0 0 10px 0;
+    font-family:'Press Start 2P', monospace;
+    font-size:10px;
+    color:var(--accent);
+    letter-spacing:1px;
+  }
+  .board ol{ list-style:none; margin:0; padding:0; }
+  .board li{
+    display:flex; justify-content:space-between;
+    font-size:13px;
+    padding:5px 0;
+    border-bottom:1px dashed var(--panel-line);
+  }
+  .board li:last-child{ border-bottom:none; }
+  .board .rank{ color:var(--ink-dim); width:22px; flex-shrink:0; }
+  .board .name{ flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; padding:0 6px; }
+  .board .pts{ color:var(--sun); font-weight:600; }
+  .board .empty{ color:var(--ink-dim); font-size:12px; padding:6px 0; }
+
+  .hint{
+    position:absolute; top:14px; left:0; right:0;
+    text-align:center;
+    font-size:11px;
+    color:var(--ink-dim);
+    pointer-events:none;
+  }
+  .status{
+    font-size:11px;
+    color:var(--ink-dim);
+    min-height:14px;
+  }
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="stage">
+    <canvas id="game"></canvas>
+
+    <div class="hint" id="hint">Tippen zum Passen</div>
+
+    <div class="overlay" id="screen-start">
+      <div class="title pixel">brothi's&nbsp;HAIL&nbsp;MARY</div>
+      <div class="subtitle">Wie viele Goalposts schaffst du? Name eingeben und los.</div>
+      <input type="text" id="username-input" placeholder="Dein Name" maxlength="16" autocomplete="off">
+      <button id="btn-start">Spiel starten</button>
+      <div class="board" id="board-start">
+        <h3>BESTENLISTE</h3>
+        <ol id="board-start-list"><li class="empty">Lädt…</li></ol>
+      </div>
+    </div>
+
+    <div class="overlay hidden" id="screen-gameover">
+      <div class="title pixel" style="color:var(--danger)">TURNOVER</div>
+      <div class="score-line">Dein Score</div>
+      <div class="score-big" id="final-score">0</div>
+      <div class="status" id="save-status"></div>
+      <button id="btn-again">Nochmal spielen</button>
+      <div class="board" id="board-over">
+        <h3>BESTENLISTE</h3>
+        <ol id="board-over-list"><li class="empty">Lädt…</li></ol>
+      </div>
+      <button class="secondary" id="btn-change-name">Namen ändern</button>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script>
+/* ---------- Supabase ---------- */
+const SUPABASE_URL = "https://ppqucliuaxjmmztkwerv.supabase.co";
+const SUPABASE_KEY = "sb_publishable_FYSUw5EQs31JLAYUC3oTXg_om0yVkjC";
+const supa = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+async function saveScore(username, score){
+  const { error } = await supa.from("highscores").insert({ username, score });
+  if (error) throw error;
+}
+
+async function loadLeaderboard(){
+  // alle Versuche holen, absteigend nach Score, dann pro Name nur den besten behalten
+  const { data, error } = await supa
+    .from("highscores")
+    .select("username, score")
+    .order("score", { ascending:false })
+    .limit(200);
+  if (error) throw error;
+  const best = new Map();
+  for (const row of data){
+    const key = row.username.trim().toLowerCase();
+    if (!best.has(key) || best.get(key).score < row.score){
+      best.set(key, row);
+    }
+  }
+  return Array.from(best.values())
+    .sort((a,b)=>b.score-a.score)
+    .slice(0,10);
+}
+
+function renderLeaderboard(listEl, rows){
+  listEl.innerHTML = "";
+  if (!rows.length){
+    listEl.innerHTML = '<li class="empty">Noch keine Scores. Sei der Erste!</li>';
+    return;
+  }
+  rows.forEach((row, i)=>{
+    const li = document.createElement("li");
+    li.innerHTML = `<span class="rank">${i+1}.</span><span class="name">${escapeHtml(row.username)}</span><span class="pts">${row.score}</span>`;
+    listEl.appendChild(li);
+  });
+}
+
+function escapeHtml(str){
+  const d = document.createElement("div");
+  d.textContent = str;
+  return d.innerHTML;
+}
+
+async function refreshBoards(){
+  try{
+    const rows = await loadLeaderboard();
+    renderLeaderboard(document.getElementById("board-start-list"), rows);
+    renderLeaderboard(document.getElementById("board-over-list"), rows);
+  }catch(e){
+    console.error(e);
+    document.getElementById("board-start-list").innerHTML = '<li class="empty">Bestenliste gerade nicht erreichbar.</li>';
+    document.getElementById("board-over-list").innerHTML = '<li class="empty">Bestenliste gerade nicht erreichbar.</li>';
+  }
+}
+
+/* ---------- UI Elemente ---------- */
+const screenStart = document.getElementById("screen-start");
+const screenOver = document.getElementById("screen-gameover");
+const usernameInput = document.getElementById("username-input");
+const btnStart = document.getElementById("btn-start");
+const btnAgain = document.getElementById("btn-again");
+const btnChangeName = document.getElementById("btn-change-name");
+const finalScoreEl = document.getElementById("final-score");
+const saveStatusEl = document.getElementById("save-status");
+const hintEl = document.getElementById("hint");
+
+const savedName = localStorage.getItem("flap_username");
+if (savedName) usernameInput.value = savedName;
+
+btnStart.addEventListener("click", ()=>{
+  const name = usernameInput.value.trim();
+  if (!name){ usernameInput.focus(); return; }
+  localStorage.setItem("flap_username", name);
+  screenStart.classList.add("hidden");
+  startGame();
+});
+usernameInput.addEventListener("keydown", (e)=>{ if(e.key==="Enter") btnStart.click(); });
+
+btnAgain.addEventListener("click", ()=>{
+  screenOver.classList.add("hidden");
+  startGame();
+});
+
+btnChangeName.addEventListener("click", ()=>{
+  screenOver.classList.add("hidden");
+  screenStart.classList.remove("hidden");
+  usernameInput.focus();
+  refreshBoards();
+});
+
+/* ---------- Sound ---------- */
+let audioCtx = null;
+function ensureAudio(){
+  if (!audioCtx){
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if (AC) audioCtx = new AC();
+  }
+  if (audioCtx && audioCtx.state === "suspended") audioCtx.resume();
+}
+function playBrassNote(freq, startTime, duration, peak){
+  const filter = audioCtx.createBiquadFilter();
+  filter.type = "lowpass";
+  filter.frequency.value = 2400;
+  filter.Q.value = 0.7;
+  filter.connect(audioCtx.destination);
+
+  const gain = audioCtx.createGain();
+  gain.connect(filter);
+  gain.gain.setValueAtTime(0.0001, startTime);
+  gain.gain.linearRampToValueAtTime(peak, startTime + 0.018);
+  gain.gain.setValueAtTime(peak, startTime + duration * 0.55);
+  gain.gain.exponentialRampToValueAtTime(0.0001, startTime + duration);
+
+  // zwei leicht verstimmte Oszillatoren übereinander für einen volleren, wärmeren Klang
+  [1, 1.006].forEach((detune)=>{
+    const osc = audioCtx.createOscillator();
+    osc.type = "sawtooth";
+    osc.frequency.value = freq * detune;
+    osc.connect(gain);
+    osc.start(startTime);
+    osc.stop(startTime + duration + 0.05);
+  });
+}
+function playTouchdownFanfare(){
+  if (!audioCtx) return;
+  const t0 = audioCtx.currentTime;
+  // klassisches Fanfaren-Motiv: kurzer Aufstieg, gehaltener Schlusston
+  playBrassNote(392.00, t0,        0.13, 0.20); // G4
+  playBrassNote(523.25, t0 + 0.14, 0.13, 0.20); // C5
+  playBrassNote(659.25, t0 + 0.28, 0.13, 0.20); // E5
+  playBrassNote(783.99, t0 + 0.42, 0.55, 0.24); // G5, gehalten
+}
+
+/* ---------- Spiel ---------- */
+const canvas = document.getElementById("game");
+const ctx = canvas.getContext("2d");
+
+const LOGICAL_W = 400;
+const LOGICAL_H = 620;
+let scale = 1;
+
+function resize(){
+  const stage = document.getElementById("stage");
+  const rect = stage.getBoundingClientRect();
+  const dpr = window.devicePixelRatio || 1;
+  scale = Math.min(rect.width / LOGICAL_W, rect.height / LOGICAL_H);
+  canvas.width = LOGICAL_W * dpr;
+  canvas.height = LOGICAL_H * dpr;
+  canvas.style.width = (LOGICAL_W*scale) + "px";
+  canvas.style.height = (LOGICAL_H*scale) + "px";
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+}
+window.addEventListener("resize", resize);
+resize();
+
+const GRAVITY = 1400;      // px/s^2
+const FLAP_VELOCITY = -380; // px/s
+const PIPE_GAP_MIN = 168;   // Mindestbreite der Lücke – wird nie unterschritten
+const PIPE_GAP_EXTRA_START = 56; // zusätzliche Lücken-Breite ganz am Anfang
+const PIPE_GAP_EXTRA_LATE = 16;  // kleine Restvarianz, die auch spät noch bleibt
+const PIPE_WIDTH = 62;
+const PIPE_SPEED_BASE = 150;      // px/s, Starttempo
+const PIPE_SPEED_MAX_BONUS = 55;  // px/s, maximaler Zuwachs über die Rampe (gedeckelt)
+const PIPE_INTERVAL_MIN = 1350; // ms – Mindestabstand, wird nie unterschritten
+const PIPE_INTERVAL_EXTRA_START = 450; // zusätzlicher Abstand ganz am Anfang
+const PIPE_INTERVAL_EXTRA_LATE = 120;  // kleine Restvarianz, die auch spät noch bleibt
+const RAMP_SECONDS = 40; // Zeit, bis die volle Schwierigkeit erreicht ist
+
+let bird, pipes, running, score, lastTime, spawnTimer, gameStarted, elapsedPlay, nextInterval;
+let celebration = { active:false, timer:0, duration:1200 };
+
+function resetGame(){
+  bird = { x: LOGICAL_W*0.28, y: LOGICAL_H/2, vy: 0, r: 14, rotation:0 };
+  pipes = [];
+  score = 0;
+  spawnTimer = 0;
+  elapsedPlay = 0;
+  nextInterval = PIPE_INTERVAL_MIN + PIPE_INTERVAL_EXTRA_START;
+  running = true;
+  gameStarted = false;
+  celebration.active = false;
+}
+
+function startGame(){
+  resetGame();
+  hintEl.style.display = "block";
+  lastTime = performance.now();
+  requestAnimationFrame(loop);
+}
+
+function flap(){
+  if (!running) return;
+  ensureAudio();
+  gameStarted = true;
+  hintEl.style.display = "none";
+  bird.vy = FLAP_VELOCITY;
+}
+
+function rampFactor(){
+  // 1 ganz am Anfang, sinkt gegen 0 nach RAMP_SECONDS
+  return Math.max(0, 1 - elapsedPlay / RAMP_SECONDS);
+}
+
+function currentSpeed(){
+  // steigt leicht und gedeckelt von PIPE_SPEED_BASE bis PIPE_SPEED_BASE+MAX_BONUS
+  return PIPE_SPEED_BASE + PIPE_SPEED_MAX_BONUS * (1 - rampFactor());
+}
+
+function spawnPipe(){
+  const ramp = rampFactor();
+  const gapExtra = PIPE_GAP_EXTRA_LATE + (PIPE_GAP_EXTRA_START - PIPE_GAP_EXTRA_LATE) * ramp;
+  const gap = PIPE_GAP_MIN + Math.random() * gapExtra;
+
+  const margin = 70;
+  const top = margin + Math.random() * (LOGICAL_H - margin*2 - gap - 90);
+  pipes.push({ x: LOGICAL_W + PIPE_WIDTH, top, gap, passed:false });
+
+  const intervalExtra = PIPE_INTERVAL_EXTRA_LATE + (PIPE_INTERVAL_EXTRA_START - PIPE_INTERVAL_EXTRA_LATE) * ramp;
+  nextInterval = PIPE_INTERVAL_MIN + Math.random() * intervalExtra;
+}
+
+function loop(now){
+  if (!running) return;
+  const dt = Math.min(now - lastTime, 40) / 1000;
+  lastTime = now;
+
+  update(dt, now);
+  draw();
+
+  if (running) requestAnimationFrame(loop);
+}
+
+function update(dt, now){
+  if (gameStarted){
+    elapsedPlay += dt;
+    const speed = currentSpeed();
+    fieldScroll += speed * dt;
+    bird.vy += GRAVITY * dt;
+    bird.y += bird.vy * dt;
+    bird.rotation = Math.max(-0.5, Math.min(1.1, bird.vy / 500));
+
+    spawnTimer += dt*1000;
+    if (spawnTimer > nextInterval){
+      spawnTimer = 0;
+      spawnPipe();
+    }
+
+    for (const p of pipes){
+      p.x -= speed * dt;
+      if (!p.passed && p.x + PIPE_WIDTH < bird.x){
+        p.passed = true;
+        score++;
+        if (score % 7 === 0){
+          celebration.active = true;
+          celebration.timer = celebration.duration;
+          playTouchdownFanfare();
+        }
+      }
+    }
+    pipes = pipes.filter(p => p.x > -PIPE_WIDTH);
+
+    if (celebration.active){
+      celebration.timer -= dt*1000;
+      if (celebration.timer <= 0) celebration.active = false;
+    }
+
+    // Kollisionen
+    if (bird.y - bird.r < 0 || bird.y + bird.r > LOGICAL_H - 40){
+      endGame();
+      return;
+    }
+    for (const p of pipes){
+      const inX = bird.x + bird.r > p.x && bird.x - bird.r < p.x + PIPE_WIDTH;
+      if (inX){
+        const inGap = bird.y - bird.r > p.top && bird.y + bird.r < p.top + p.gap;
+        if (!inGap){ endGame(); return; }
+      }
+    }
+  }
+}
+
+let fieldScroll = 0;
+const YARD_SPACING = 60;
+
+function drawField(dt){
+  // Rasen-Grundfarbe
+  const grad = ctx.createLinearGradient(0,0,0,LOGICAL_H);
+  grad.addColorStop(0, "#1e5631");
+  grad.addColorStop(1, "#2d7a42");
+  ctx.fillStyle = grad;
+  ctx.fillRect(0,0,LOGICAL_W,LOGICAL_H);
+
+  // Mäh-Streifen: Parität an der tatsächlichen Weltposition festmachen, damit kein Segment
+  // je die Farbe wechselt (nur durchs Bild wandert)
+  ctx.fillStyle = "rgba(255,255,255,0.06)";
+  const segStart = Math.floor((fieldScroll - YARD_SPACING) / YARD_SPACING) * YARD_SPACING;
+  for (let worldX = segStart; worldX < fieldScroll + LOGICAL_W + YARD_SPACING; worldX += YARD_SPACING){
+    const segIndex = Math.round(worldX / YARD_SPACING);
+    if (segIndex % 2 === 0){
+      const screenX = Math.round(worldX - fieldScroll);
+      ctx.fillRect(screenX, 0, YARD_SPACING + 1, LOGICAL_H); // +1px Überlappung gegen Subpixel-Nähte
+    }
+  }
+
+  // Yard-Linien (durchgehend, ohne Unterbrechungen)
+  ctx.strokeStyle = "rgba(244,247,240,0.55)";
+  ctx.lineWidth = 3;
+  for (let x = -(fieldScroll % YARD_SPACING); x < LOGICAL_W; x += YARD_SPACING){
+    ctx.beginPath();
+    ctx.moveTo(x, 0);
+    ctx.lineTo(x, LOGICAL_H-40);
+    ctx.stroke();
+  }
+
+  // 1-Yard-Hash-Marken (kleine Striche zwischen den großen Linien), vier Reihen wie auf echtem Feld
+  const HASH_SPACING = YARD_SPACING / 5;
+  const hashLen = 9;
+  const hashRows = [
+    { y: 14,  dir: 1 },   // obere Seitenlinie
+    { y: 160, dir: 1 },   // obere Hash-Reihe
+    { y: LOGICAL_H-40-160, dir: -1 }, // untere Hash-Reihe
+    { y: LOGICAL_H-40-14,  dir: -1 }, // untere Seitenlinie
+  ];
+  ctx.strokeStyle = "rgba(244,247,240,0.5)";
+  ctx.lineWidth = 2;
+  const startStep = Math.floor((fieldScroll - HASH_SPACING) / HASH_SPACING);
+  const endWorld = fieldScroll + LOGICAL_W + HASH_SPACING;
+  for (let step = startStep; step*HASH_SPACING < endWorld; step++){
+    if (step % 5 === 0) continue; // fällt auf eine große Yard-Linie, schon gezeichnet
+    const worldX = step * HASH_SPACING;
+    const screenX = Math.round(worldX - fieldScroll);
+    for (const row of hashRows){
+      ctx.beginPath();
+      ctx.moveTo(screenX, row.y);
+      ctx.lineTo(screenX, row.y + hashLen*row.dir);
+      ctx.stroke();
+    }
+  }
+}
+
+const CROSSBAR_HEIGHT = 90; // Höhe der Querlatte über dem Boden (fix, wie bei echten Goalposts)
+const POST_W = 14;          // Breite des Hauptpfostens
+const PRONG_W = 7;          // Breite der beiden Zinken oberhalb der Querlatte
+const PRONG_OFFSET = 15;    // Abstand der Zinken von der Mittelachse
+
+function drawGoalpost(p){
+  const midX = p.x + PIPE_WIDTH/2;
+  const groundY = LOGICAL_H - 40;
+  const crossbarY = groundY - CROSSBAR_HEIGHT;
+  const crossbarTopY = crossbarY - 8;
+  const gapBottom = p.top + p.gap;
+
+  const leftOuter = midX - PRONG_OFFSET - PRONG_W/2;
+  const leftInner = midX - PRONG_OFFSET + PRONG_W/2;
+  const rightInner = midX + PRONG_OFFSET - PRONG_W/2;
+  const rightOuter = midX + PRONG_OFFSET + PRONG_W/2;
+  const postLeft = midX - POST_W/2;
+  const postRight = midX + POST_W/2;
+
+  ctx.fillStyle = "#ffd60a";
+  ctx.strokeStyle = "#173a24";
+  ctx.lineWidth = 3;
+  ctx.lineJoin = "round";
+
+  // Sichtbarer Teil: eine einzige zusammenhängende Silhouette
+  // (linke Zinke -> Verjüngung -> Hauptpfosten -> Boden -> zurück -> Verjüngung -> rechte Zinke -> Innenkante der Querlatte)
+  ctx.beginPath();
+  ctx.moveTo(leftOuter, gapBottom);
+  ctx.lineTo(leftOuter, crossbarTopY);
+  ctx.lineTo(postLeft, crossbarY);
+  ctx.lineTo(postLeft, groundY);
+  ctx.lineTo(postRight, groundY);
+  ctx.lineTo(postRight, crossbarY);
+  ctx.lineTo(rightOuter, crossbarTopY);
+  ctx.lineTo(rightOuter, gapBottom);
+  ctx.lineTo(rightInner, gapBottom);
+  ctx.lineTo(rightInner, crossbarTopY);
+  ctx.lineTo(leftInner, crossbarTopY);
+  ctx.lineTo(leftInner, gapBottom);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+
+  // Zinken setzen sich oberhalb der Lücke fort (ragen aus dem Bild hinaus) — eigenes Element,
+  // da optisch durch die Flug-Lücke getrennt
+  ctx.fillRect(leftOuter, 0, PRONG_W, p.top);
+  ctx.strokeRect(leftOuter, 0, PRONG_W, p.top);
+  ctx.fillRect(rightOuter - PRONG_W, 0, PRONG_W, p.top);
+  ctx.strokeRect(rightOuter - PRONG_W, 0, PRONG_W, p.top);
+}
+
+
+
+function draw(){
+  ctx.clearRect(0,0,LOGICAL_W,LOGICAL_H);
+
+  drawField();
+
+  // Goalposts
+  for (const p of pipes) drawGoalpost(p);
+
+  // Boden / Seitenlinie
+  ctx.fillStyle = "#f4f7f0";
+  ctx.fillRect(0, LOGICAL_H-40, LOGICAL_W, 6);
+  ctx.fillStyle = "#173a24";
+  ctx.fillRect(0, LOGICAL_H-34, LOGICAL_W, 34);
+
+  // Football
+  ctx.save();
+  ctx.translate(bird.x, bird.y);
+  ctx.rotate(bird.rotation);
+  ctx.fillStyle = "#7b3f1d";
+  ctx.strokeStyle = "#173a24";
+  ctx.lineWidth = 2.5;
+  ctx.beginPath();
+  ctx.ellipse(0, 0, bird.r+4, bird.r-3, 0, 0, Math.PI*2);
+  ctx.fill();
+  ctx.stroke();
+  // Naht (Laces)
+  ctx.strokeStyle = "#f4f7f0";
+  ctx.lineWidth = 1.6;
+  ctx.beginPath();
+  ctx.moveTo(-7,0); ctx.lineTo(7,0);
+  ctx.stroke();
+  for (let lx=-5; lx<=5; lx+=2.5){
+    ctx.beginPath();
+    ctx.moveTo(lx,-2.5); ctx.lineTo(lx,2.5);
+    ctx.stroke();
+  }
+  ctx.restore();
+
+  // Score
+  ctx.font = "28px 'Press Start 2P', monospace";
+  ctx.fillStyle = "#f4f7f0";
+  ctx.textAlign = "center";
+  ctx.strokeStyle = "rgba(0,0,0,0.35)";
+  ctx.lineWidth = 4;
+  ctx.strokeText(score, LOGICAL_W/2, 70);
+  ctx.fillText(score, LOGICAL_W/2, 70);
+
+  drawCelebration();
+}
+
+function drawCelebration(){
+  if (!celebration.active) return;
+  const t = celebration.timer / celebration.duration; // 1 -> 0
+  let alpha = 1;
+  if (t > 0.8) alpha = (1 - t) / 0.2;       // einblenden
+  else if (t < 0.2) alpha = t / 0.2;         // ausblenden
+  alpha = Math.max(0, Math.min(1, alpha));
+
+  const bandY = LOGICAL_H * 0.7;
+  const bandH = 64;
+
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  ctx.fillStyle = "rgba(23,58,36,0.9)";
+  ctx.fillRect(0, bandY, LOGICAL_W, bandH);
+  ctx.strokeStyle = "#ffd60a";
+  ctx.lineWidth = 3;
+  ctx.strokeRect(2, bandY+2, LOGICAL_W-4, bandH-4);
+
+  ctx.font = "20px 'Press Start 2P', monospace";
+  ctx.fillStyle = "#ffd60a";
+  ctx.textAlign = "center";
+  ctx.fillText("TOUCHDOWN!", LOGICAL_W/2, bandY + bandH/2 + 7);
+  ctx.restore();
+}
+
+async function endGame(){
+  running = false;
+  finalScoreEl.textContent = score;
+  saveStatusEl.textContent = "Score wird gespeichert…";
+  screenOver.classList.remove("hidden");
+
+  const name = localStorage.getItem("flap_username") || "Anonym";
+  try{
+    await saveScore(name, score);
+    saveStatusEl.textContent = "Gespeichert.";
+  }catch(e){
+    console.error(e);
+    saveStatusEl.textContent = "Konnte Score nicht speichern (keine Verbindung?).";
+  }
+  refreshBoards();
+}
+
+/* Input */
+canvas.addEventListener("pointerdown", flap);
+window.addEventListener("keydown", (e)=>{ if(e.code==="Space") flap(); });
+
+refreshBoards();
+</script>
+</body>
+</html>
