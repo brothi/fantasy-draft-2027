@@ -371,16 +371,16 @@ setTimeout(resize, 800);
 
 const GRAVITY = 1400;      // px/s^2
 const FLAP_VELOCITY = -380; // px/s
-const PIPE_GAP_MIN = 168;   // Mindestbreite der Lücke – wird nie unterschritten
-const PIPE_GAP_EXTRA_START = 56; // zusätzliche Lücken-Breite ganz am Anfang
+const PIPE_GAP_MIN = 145;   // Mindestbreite der Lücke – wird nie unterschritten
+const PIPE_GAP_EXTRA_START = 79; // zusätzliche Lücken-Breite ganz am Anfang
 const PIPE_GAP_EXTRA_LATE = 16;  // kleine Restvarianz, die auch spät noch bleibt
 const PIPE_WIDTH = 62;
-const PIPE_SPEED_BASE = 150;      // px/s, Starttempo
-const PIPE_SPEED_MAX_BONUS = 55;  // px/s, maximaler Zuwachs über die Rampe (gedeckelt)
-const PIPE_INTERVAL_MIN = 1350; // ms – Mindestabstand, wird nie unterschritten
-const PIPE_INTERVAL_EXTRA_START = 450; // zusätzlicher Abstand ganz am Anfang
+const PIPE_SPEED_BASE = 170;      // px/s, Starttempo
+const PIPE_SPEED_MAX_BONUS = 90;  // px/s, maximaler Zuwachs über die Rampe (gedeckelt)
+const PIPE_INTERVAL_MIN = 1100; // ms – Mindestabstand, wird nie unterschritten
+const PIPE_INTERVAL_EXTRA_START = 700; // zusätzlicher Abstand ganz am Anfang
 const PIPE_INTERVAL_EXTRA_LATE = 120;  // kleine Restvarianz, die auch spät noch bleibt
-const RAMP_SECONDS = 40; // Zeit, bis die volle Schwierigkeit erreicht ist
+const RAMP_SECONDS = 25; // Zeit, bis die volle Schwierigkeit erreicht ist
 
 let celebration = { active:false, timer:0, duration:1200 };
 
