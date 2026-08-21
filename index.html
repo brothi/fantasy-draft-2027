@@ -380,7 +380,19 @@ const PIPE_SPEED_MAX_BONUS = 90;  // px/s, maximaler Zuwachs über die Rampe (ge
 const PIPE_INTERVAL_MIN = 1100; // ms – Mindestabstand, wird nie unterschritten
 const PIPE_INTERVAL_EXTRA_START = 700; // zusätzlicher Abstand ganz am Anfang
 const PIPE_INTERVAL_EXTRA_LATE = 120;  // kleine Restvarianz, die auch spät noch bleibt
-const RAMP_SECONDS = 25; // Zeit, bis die volle Schwierigkeit erreicht ist
+const RAMP_SECONDS = 25; // Zeit, bis die erste (schnelle) Rampe die Basis-Schwierigkeit erreicht
+
+// Zweite, langsamere Dauer-Eskalation: zieht NACH der ersten Rampe weiter an,
+// bis eine harte, aber noch spielbare Untergrenze erreicht ist.
+const ENDLESS_SECONDS = 60;     // Dauer der zweiten Phase
+const PIPE_GAP_ULTIMATE = 115;  // absolute Untergrenze der Lücke, nie kleiner
+const PIPE_INTERVAL_ULTIMATE = 850; // absolute Untergrenze des Abstands, nie kleiner
+const PIPE_SPEED_ULTIMATE = 340;    // absolute Obergrenze des Tempos, nie schneller
+
+function endlessFactor(){
+  // 0 bis RAMP_SECONDS, dann 0->1 über die nächsten ENDLESS_SECONDS, danach konstant 1
+  return Math.max(0, Math.min(1, (elapsedPlay - RAMP_SECONDS) / ENDLESS_SECONDS));
+}
 
 let celebration = { active:false, timer:0, duration:1200 };
 
@@ -417,21 +429,28 @@ function rampFactor(){
 }
 
 function currentSpeed(){
-  // steigt leicht und gedeckelt von PIPE_SPEED_BASE bis PIPE_SPEED_BASE+MAX_BONUS
-  return PIPE_SPEED_BASE + PIPE_SPEED_MAX_BONUS * (1 - rampFactor());
+  // Phase 1: steigt von PIPE_SPEED_BASE bis PIPE_SPEED_BASE+MAX_BONUS
+  const base = PIPE_SPEED_BASE + PIPE_SPEED_MAX_BONUS * (1 - rampFactor());
+  // Phase 2: zieht danach langsam weiter bis PIPE_SPEED_ULTIMATE an
+  const hardCap = PIPE_SPEED_BASE + PIPE_SPEED_MAX_BONUS;
+  return base + (PIPE_SPEED_ULTIMATE - hardCap) * endlessFactor();
 }
 
 function spawnPipe(){
   const ramp = rampFactor();
+  const endless = endlessFactor();
+
+  const gapFloor = PIPE_GAP_MIN + (PIPE_GAP_ULTIMATE - PIPE_GAP_MIN) * endless;
   const gapExtra = PIPE_GAP_EXTRA_LATE + (PIPE_GAP_EXTRA_START - PIPE_GAP_EXTRA_LATE) * ramp;
-  const gap = PIPE_GAP_MIN + Math.random() * gapExtra;
+  const gap = gapFloor + Math.random() * gapExtra;
 
   const margin = 70;
   const top = margin + Math.random() * (LOGICAL_H - margin*2 - gap - 90);
   pipes.push({ x: LOGICAL_W + PIPE_WIDTH, top, gap, passed:false });
 
+  const intervalFloor = PIPE_INTERVAL_MIN + (PIPE_INTERVAL_ULTIMATE - PIPE_INTERVAL_MIN) * endless;
   const intervalExtra = PIPE_INTERVAL_EXTRA_LATE + (PIPE_INTERVAL_EXTRA_START - PIPE_INTERVAL_EXTRA_LATE) * ramp;
-  nextInterval = PIPE_INTERVAL_MIN + Math.random() * intervalExtra;
+  nextInterval = intervalFloor + Math.random() * intervalExtra;
 }
 
 function loop(now){
